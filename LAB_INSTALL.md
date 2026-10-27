@@ -22,7 +22,7 @@ Commands below are for **PowerShell**. Replace `<you>` with the Windows user nam
 ## Before you start
 
 - **Anaconda or Miniconda** and **Git for Windows** are installed.
-- **GitHub access:** your GitHub account can read the private repo `nrsc/acq4`. Ask Scott Sawchuk for access,
+- **GitHub access:** your GitHub account can read the private repo `nrsc/acq4U`. Ask Scott Sawchuk for access,
   then set up an SSH key or run `gh auth login`.
 - **Hardware drivers:** vendor drivers for the rig's hardware are already installed, as they were for the old
   acq4. For example, Thorlabs ThorCam/uc480 for a Thorlabs camera.
@@ -31,7 +31,7 @@ Commands below are for **PowerShell**. Replace `<you>` with the Windows user nam
 ## 1. Get the code
 
 ```powershell
-git clone -b acq4U git@github.com:nrsc/acq4.git C:\Users\<you>\acq4U
+git clone git@github.com:nrsc/acq4U.git C:\Users\<you>\acq4U
 cd C:\Users\<you>\acq4U
 ```
 
@@ -206,6 +206,29 @@ git push
 - **`Patch` is deprecated.** The `Patch` module still loads but is replaced by MultiPatch.
 - **Atlas warning is harmless.** An `aiccf` import error at startup only means the optional brain-atlas overlay
   isn't installed.
+
+## Merging a new official acq4 release (maintainers)
+
+This repo is official acq4 with the lab's commits on top. To bring in a newer acq4 release:
+
+```powershell
+git remote add upstream https://github.com/acq4/acq4.git   # once per checkout
+git fetch upstream
+git merge upstream/main
+pip install -e ".[micromanager,scientifica]" pywin32
+python -u tools\lab_featuretest.py $env:TEMP\acq4U_test C:\Users\<you>\acq4U C:\path\to\acq4_data
+python tools\lab_check_config.py
+```
+
+Conflicts are most likely in the files carrying lab features:
+
+- `acq4\util\imaging\imaging_ctrl.py` and `imaging_template.ui`;
+- `acq4\modules\Camera\CameraWindow.py`;
+- `acq4\modules\DataManager\DataManagerModule.py` and `DataManagerTemplate.ui`;
+- `acq4\util\DirTreeWidget\DirTreeWidget.py`.
+
+Push only after the feature test passes. If the new acq4 needs a newer pymmcore, also install a Micro-Manager
+build with the matching device interface (step 4).
 
 ## Going back to the old acq4
 
