@@ -76,7 +76,20 @@ def main():
         report("FAIL", "config file not found: %s (copy this machine's config into acq4U\\config)" % cfgFile)
         return
     print("Checking", cfgFile, "\n")
-    cfg = readConfig(cfgFile)
+    try:
+        cfg = readConfig(cfgFile)
+    except Exception as e:
+        cfgDir = os.path.dirname(os.path.abspath(cfgFile))
+        withBOM = [f for f in os.listdir(cfgDir) if f.endswith(".cfg")
+                   and open(os.path.join(cfgDir, f), "rb").read(3) == b"\xef\xbb\xbf"]
+        hint = (" These files start with a byte-order mark, which acq4 cannot read; re-save them as UTF-8 "
+                "without BOM: %s" % withBOM) if withBOM else ""
+        # nested parse errors put the useful part (file, line and reason) at the end
+        detail = " | ".join(line.strip() for line in str(e).splitlines()[-4:] if line.strip())
+        if not hint and "\\" in str(e):
+            hint = " Windows paths in config files need doubled backslashes, e.g. 'C:\\\\Users\\\\...'."
+        report("FAIL", "config cannot be read: %s%s" % (detail, hint))
+        return
     modules.importBuiltinClasses()
 
     for name, dcfg in (cfg.get("devices") or {}).items():

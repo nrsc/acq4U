@@ -79,6 +79,9 @@ Then open `config\default.cfg` and check that:
 backup in `rigs\`. Copy everything except `folderTypes.cfg` into `config\`, then edit `devices.cfg` for this
 rig's hardware.
 
+Edit config files in Notepad or VS Code. Don't edit them with PowerShell's `Set-Content -Encoding utf8`: it adds
+a byte-order mark that acq4 cannot read.
+
 Don't edit `config\folderTypes.cfg` on just one machine. Change it for everyone instead (see
 [Changing the shared folder types](#changing-the-shared-folder-types)).
 
