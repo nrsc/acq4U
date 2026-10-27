@@ -4,7 +4,7 @@ Copies the example (mock) config with the lab folderTypes.cfg, copies .index fil
 images from a real data folder into <scratch dir>, then exercises cell naming, metadata export,
 pin z-order, drag-and-drop pinning, Load pinned images and mosaic export. Run after upgrading acq4.
 
-usage: python acq4U_featuretest.py <scratch dir> <acq4U repo> <real acq4_data dir>
+usage: python tools/lab_featuretest.py <scratch dir> <acq4U repo> <real acq4_data dir>
 """
 import glob
 import json

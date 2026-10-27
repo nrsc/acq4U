@@ -20,3 +20,6 @@ temp_log.json
 temp_log.json
 AGENTS.local.md
 dependencies/
+
+# shared lab config: tracked so every machine uses the same folder types
+!config/folderTypes.cfg
