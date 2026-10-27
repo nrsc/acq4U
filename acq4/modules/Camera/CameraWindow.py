@@ -8,10 +8,40 @@ import acq4.Manager as Manager
 import pyqtgraph as pg
 import pyqtgraph.dockarea as dockarea
 from acq4.util import Qt, ptime
+from acq4.util.DataManager import getHandle
 from acq4.util.StatusBar import StatusBar
 from acq4.util.imaging.sequencer import ImageSequencerCtrl
 from pyqtgraph.debug import Profiler
 from pyqtgraph.graphicsItems.ROI import RulerROI
+from ...logging_config import get_logger
+
+logger = get_logger(__name__)
+
+
+def framesWithSources(handle):
+    """Return [(Frame, fileHandle or None)] for a saved image file or a folder of them.
+
+    Mirrors DirHandle.representativeFramesForAllImages(), but keeps the source file for single 2D
+    images so a mosaic export can reference it; stacks yield a representative frame and no file.
+    """
+    from acq4.util.imaging import Frame
+    from acq4.util.surface import find_surface
+
+    if handle.isDir():
+        out = []
+        for child in handle:
+            if child.isDir() and not child.shortName().startswith("ImageSequence_"):
+                continue
+            out.extend(framesWithSources(child))
+        return out
+    if handle.fileType() == "ImageFile" and 'background' not in handle.shortName().lower():
+        return [(Frame.loadFromFileHandle(handle), handle)]
+    if handle.fileType() == "MetaArray" and 'pixelSize' in handle.info():
+        frames = Frame.loadFromFileHandle(handle)
+        if isinstance(frames, Frame):
+            return [(frames, handle)]
+        return [(frames[find_surface(frames) or len(frames) // 2], None)]
+    return []
 
 
 class CameraWindow(Qt.QMainWindow):
@@ -42,6 +72,11 @@ class CameraWindow(Qt.QMainWindow):
         self.view.enableAutoRange(x=False, y=False)
         self.view.setAspectLocked(True)
         self.gv.setCentralItem(self.view)
+
+        # accept saved images dragged in from the Data Manager (or a file browser) and pin them
+        self._dropTarget = self.gv.viewport()
+        self.gv.setAcceptDrops(True)
+        self._dropTarget.installEventFilter(self)
 
         # And a plot area for displaying depth-related information
         self.depthPlot = pg.PlotWidget(labels={"left": ("Depth", "m")})
@@ -241,6 +276,45 @@ class CameraWindow(Qt.QMainWindow):
     def removeItem(self, item):
         self.view.removeItem(item)
 
+    def eventFilter(self, obj, ev):
+        if obj is self._dropTarget and ev.type() in (Qt.QEvent.DragEnter, Qt.QEvent.DragMove, Qt.QEvent.Drop):
+            if not ev.mimeData().hasUrls():
+                return False
+            # Always copy; reporting a move back to the Data Manager would remove the dragged tree items.
+            ev.setDropAction(Qt.Qt.CopyAction)
+            ev.accept()
+            if ev.type() == Qt.QEvent.Drop:
+                paths = [url.toLocalFile() for url in ev.mimeData().urls()]
+                # let the drag finish before loading files
+                Qt.QTimer.singleShot(0, lambda: self.pinFiles(paths))
+            return True
+        return Qt.QMainWindow.eventFilter(self, obj, ev)
+
+    def pinFiles(self, paths):
+        """Pin saved camera images to the view at the positions where they were acquired.
+
+        Folders are expanded to the image files (or representative stack frames) they directly contain.
+        """
+        pinned = 0
+        skipped = 0
+        with pg.BusyCursor():
+            for path in paths:
+                try:
+                    for frame, fh in framesWithSources(getHandle(path)):
+                        try:
+                            self.displayPinnedFrame(frame, fileHandle=fh)
+                            pinned += 1
+                        except Exception:
+                            skipped += 1
+                            logger.exception(f"Could not pin image from {path}:")
+                except Exception:
+                    skipped += 1
+                    logger.exception(f"Could not read images from {path}:")
+        msg = "Pinned %d image(s)" % pinned
+        if skipped:
+            msg += " (%d skipped: no position info or unreadable)" % skipped
+        self.showMessage(msg, 5000)
+
     def showMessage(self, msg, delay=2000):
         self.statusBar().showMessage(str(msg), delay)
 
@@ -276,10 +350,10 @@ class CameraWindow(Qt.QMainWindow):
         # update ROI plots
         self.roiWidget.newFrame(iface, frame)
 
-    def displayPinnedFrame(self, frame: "Frame"):
+    def displayPinnedFrame(self, frame: "Frame", fileHandle=None):
         device_name = frame.info().get('deviceName', 'Camera')
         imaging_ctrl = self.getInterfaceForDevice(device_name).imagingCtrl
-        imaging_ctrl.addPinnedFrame(frame.imageItem())
+        imaging_ctrl.addPinnedFrame(frame.imageItem(), frame=frame, fileHandle=fileHandle)
 
     def ifaceTransformChanged(self, iface):
         # imaging device moved; update viewport and tracked group.

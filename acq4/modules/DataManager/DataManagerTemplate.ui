@@ -130,6 +130,16 @@
           </column>
          </widget>
         </item>
+        <item>
+         <widget class="FeedbackButton" name="exportMetadataBtn">
+          <property name="toolTip">
+           <string>Export the selected cell's metadata (or every cell in a selected slice) as a joint-notebook row. The row is saved as CSV and copied to the clipboard, ready to paste into the sheet.</string>
+          </property>
+          <property name="text">
+           <string>Export Metadata</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </widget>
       <widget class="QWidget" name="layoutWidget">
@@ -277,6 +287,11 @@
    <class>DirTreeWidget</class>
    <extends>QTreeWidget</extends>
    <header>acq4.util.DirTreeWidget</header>
+  </customwidget>
+  <customwidget>
+   <class>FeedbackButton</class>
+   <extends>QPushButton</extends>
+   <header>pyqtgraph</header>
   </customwidget>
  </customwidgets>
  <resources/>

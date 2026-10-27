@@ -1,6 +1,13 @@
+import json
+import os
+from collections import OrderedDict
+
+import numpy as np
 import pyqtgraph as pg
 
+import acq4.Manager as Manager
 from acq4.util import Qt, ptime
+from acq4.util.DataManager import getDirHandle
 from .frame_display import FrameDisplay
 from .record_thread import RecordThread
 from ...logging_config import get_logger
@@ -91,6 +98,7 @@ class ImagingCtrl(Qt.QWidget):
         self.ui.saveFrameBtn.clicked.connect(self.saveFrameClicked)
         self.ui.pinFrameBtn.clicked.connect(self.pinFrameClicked)
         self.ui.clearPinnedFramesBtn.clicked.connect(self.clearPinnedFramesClicked)
+        self.ui.exportMosaicBtn.clicked.connect(self.exportMosaicClicked)
         self.sigUpdateUi.connect(self.updateUi)
 
     def addFrameButton(self, name):
@@ -269,19 +277,28 @@ class ImagingCtrl(Qt.QWidget):
         im = pg.ImageItem(data, levels=hist.getLevels(), lut=hist.getLookupTable(img=data), removable=True)
         im.setTransform(self.frameDisplay.currentFrame.globalTransform().as2D())
 
-        self.addPinnedFrame(im)
+        self.addPinnedFrame(im, frame=self.frameDisplay.currentFrame)
 
-    def addPinnedFrame(self, im: pg.ImageItem):
+    def addPinnedFrame(self, im: pg.ImageItem, frame=None, fileHandle=None):
+        """Pin *im* to the view background.
+
+        *frame* is the Frame the image came from and *fileHandle* the 2D image file it was loaded
+        from, if any; mosaic export references that file instead of saving a new copy.
+        """
         if len(self.pinnedFrames) == 0:
             z = -10000
         else:
             z = self.pinnedFrames[-1].zValue() + 1
-        im.setZValue(z)
+        im.pinnedFrame = frame
+        im.pinnedFile = fileHandle
         im.sigRemoveRequested.connect(self.removePinnedFrame)
         self.pinnedFrames.append(im)
         view = self.frameDisplay.imageItem().getViewBox()
         if view is not None:
             view.addItem(im)
+        # set z after addItem; ViewBox.addItem raises any z below its own (-100) to -99,
+        # which would let pinned frames climb above the live image (z=-2) after ~98 pins.
+        im.setZValue(z)
 
     def removePinnedFrame(self, fr):
         self.pinnedFrames.remove(fr)
@@ -299,9 +316,98 @@ class ImagingCtrl(Qt.QWidget):
         for frame in self.pinnedFrames[:]:
             self.removePinnedFrame(frame)
 
+    def exportMosaicClicked(self):
+        if len(self.pinnedFrames) == 0:
+            self.ui.exportMosaicBtn.failure("Nothing pinned")
+            return
+        filename = Qt.QFileDialog.getSaveFileName(
+            self, "Export mosaic", self.defaultMosaicFileName(), "Mosaic files (*.mosaic)")[0]
+        if filename == '':
+            return
+        if not filename.endswith('.mosaic'):
+            filename += '.mosaic'
+        try:
+            with pg.BusyCursor():
+                count = self.exportMosaic(filename)
+            self.ui.exportMosaicBtn.success("Exported %d frames" % count)
+        except Exception:
+            self.ui.exportMosaicBtn.failure("Error.")
+            logger.exception("Error exporting mosaic:")
+
+    def defaultMosaicFileName(self):
+        """Suggest <baseDir>/.mosaics/<specimen>.<slice>...mosaic, named after the current directory."""
+        man = Manager.getManager()
+        base = man.getBaseDir()
+        cur = man.getCurrentDir()
+        saveDir = os.path.join(base.name(), '.mosaics')
+        if not os.path.isdir(saveDir):
+            saveDir = cur.name()
+        from acq4.modules.DataManager.metadata_export import realName
+
+        # folder names from the current dir up to (not including) the base dir, with on-disk case
+        parts = []
+        d = cur
+        while d is not None and d is not base and d.name() != base.name():
+            parts.insert(0, realName(d))
+            d = d.parent()
+        # drop the top-level folder (e.g. "Human"): Human/H26.03.302/.11.21 -> H26.03.302.11.21
+        name = '.'.join(parts[1:] if len(parts) > 1 else parts).replace('..', '.').strip('.')
+        return os.path.join(saveDir, (name or 'mosaic') + '.mosaic')
+
+    def exportMosaic(self, filename):
+        """Write all pinned frames to a .mosaic file that can be opened in the Mosaic Editor.
+
+        Pinned frames that were not loaded from a 2D image file are first saved as images in a new
+        Mosaic folder inside the current directory. Returns the number of frames exported.
+        """
+        from acq4.util.Canvas.items.ImageCanvasItem import ImageCanvasItem
+
+        relativeTo = getDirHandle(os.path.dirname(os.path.abspath(filename)))
+        mosaicDir = None
+        items = []
+        for i, im in enumerate(self.pinnedFrames):
+            if getattr(im, 'pinnedFile', None) is None:
+                frame = getattr(im, 'pinnedFrame', None)
+                if frame is None:
+                    continue
+                if mosaicDir is None:
+                    curDir = Manager.getManager().getCurrentDir()
+                    mosaicDir = curDir.mkdir("mosaic", autoIncrement=True, info={"dirType": "Mosaic"})
+                # remember the saved file so later exports don't save it again
+                im.pinnedFile = frame.saveImage(mosaicDir, "image.tif")
+
+            # build each entry with the Mosaic Editor's own item class so the saved state matches its format
+            item = ImageCanvasItem(im.pinnedFile)
+            item.name = item.opts['name']  # normally assigned by Canvas.addItem
+            if im.levels is not None:
+                item.histogram.setLevels(*[float(x) for x in np.asarray(im.levels).ravel()[:2]])
+            item.setZValue(i)
+            items.append(item.saveState(relativeTo=relativeTo))
+
+        view = self.frameDisplay.imageItem().getViewBox()
+        state = OrderedDict([
+            ('contents', 'MosaicEditor_save'),
+            ('version', (2, 0)),
+            ('rootPath', relativeTo.name()),
+            ('items', items),
+            ('view', view.getState() if view is not None else {}),
+        ])
+        with open(filename, 'w') as fh:
+            json.dump(state, fh, indent=4, cls=_NumpyEncoder)
+        return len(items)
+
     def threadSavedFrame(self, filename):
         # Called when the recording thread saves a single frame
         if filename is False:
             self.ui.saveFrameBtn.failure("Error.")
         else:
             self.ui.saveFrameBtn.success("Saved.")
+
+
+class _NumpyEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, np.generic):
+            return o.item()
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        return json.JSONEncoder.default(self, o)

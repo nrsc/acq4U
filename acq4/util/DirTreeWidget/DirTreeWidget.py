@@ -354,6 +354,12 @@ class DirTreeWidget(Qt.QTreeWidget):
         self.expandTo(handle)
         self.setCurrentItem(item)
 
+    def mimeData(self, items):
+        # Also export dragged items as file URLs so other widgets (e.g. the Camera module) can accept them.
+        data = Qt.QTreeWidget.mimeData(self, items)
+        data.setUrls([Qt.QUrl.fromLocalFile(item.handle.name()) for item in items])
+        return data
+
     def dropMimeData(self, parent, index, data, action):
         #print "dropMimeData:", parent, index, self.selectedFiles()
         source = self.selectedFiles()

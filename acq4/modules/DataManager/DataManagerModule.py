@@ -1,6 +1,7 @@
 import contextlib
 import json
 import os
+import re
 import time
 from datetime import datetime
 from logging import LogRecord
@@ -12,6 +13,8 @@ from acq4.util.StatusBar import StatusBar
 from pyqtgraph import FileDialog
 from teleprox.log.logviewer import LogViewer
 from . import FileAnalysisView
+from . import metadata_export
+from .metadata_dialog import MissingMetadataDialog
 from ...logging_config import get_logger, HistoricLogRecord
 from ...util.HelpfulException import HelpfulException
 
@@ -121,6 +124,7 @@ class DataManager(Module):
         self.ui.setCurrentDirBtn.clicked.connect(self.setCurrentClicked)
         self.ui.setLogDirBtn.clicked.connect(self.setLogDir)
         self.ui.loadPinnedImagesBtn.clicked.connect(self.loadPinnedImages)
+        self.ui.exportMetadataBtn.clicked.connect(self.exportMetadataClicked)
         self.win.sigClosed.connect(self.quit)
 
         self.win.setStatusBar(StatusBar())
@@ -154,10 +158,60 @@ class DataManager(Module):
         self.manager.setLogDir(d)
 
     def loadPinnedImages(self):
+        from acq4.modules.Camera.CameraWindow import framesWithSources
+
         cam_mod = self.manager.getModule("Camera")
         current_dir = self.manager.getCurrentDir()
-        for f in current_dir.representativeFramesForAllImages():
-            cam_mod.ui.displayPinnedFrame(f)
+        # keep each image's source file so a mosaic export can reference it
+        for frame, fh in framesWithSources(current_dir):
+            cam_mod.ui.displayPinnedFrame(frame, fileHandle=fh)
+
+    def exportMetadataClicked(self):
+        try:
+            cells = metadata_export.findCellDirs(self.selectedFile())
+            if len(cells) == 0:
+                self.ui.exportMetadataBtn.failure("Select a cell or slice")
+                return
+            if not self.completeMetadata(cells):
+                return
+
+            tab = metadata_export.notebookTab(cells[0])
+            note = ""
+            if tab is None:
+                tab = "Human_acute"
+                note = " (slice_type not set; formatted for Human_acute)"
+            rows = [metadata_export.cellRow(c) for c in cells]
+
+            # save next to the other exports in <baseDir>/.metadata, named after the cell (or slice)
+            name = rows[0]["cell_name"] if len(rows) == 1 else (rows[0]["Slice_ID"] or metadata_export.realName(cells[0].parent()))
+            outDir = os.path.join(self.manager.getBaseDir().name(), ".metadata")
+            os.makedirs(outDir, exist_ok=True)
+            fileName = os.path.join(outDir, name + ".csv")
+            with open(fileName, "w", newline="", encoding="utf-8") as fh:
+                fh.write(metadata_export.rowsToCsv(rows, tab))
+
+            # tab-separated text pastes into separate cells in Google Sheets
+            Qt.QApplication.clipboard().setText(metadata_export.rowsToTsv(rows, tab))
+            self.ui.exportMetadataBtn.success("Copied %d row(s)" % len(rows))
+            self.win.statusBar().showMessage(
+                "%s rows copied to clipboard and saved to %s%s" % (tab, fileName, note), 10000)
+        except Exception:
+            self.ui.exportMetadataBtn.failure("Error.")
+            logger.exception("Error exporting metadata:")
+
+    def completeMetadata(self, cells):
+        """Prompt for required fields that are empty. Returns False if the user cancelled."""
+        while True:
+            missing = metadata_export.missingFields(cells)
+            if not missing:
+                return True
+            dlg = MissingMetadataDialog(missing, self.manager, self.baseDir, self.win)
+            dlg.exec_()
+            if dlg.choice is None:
+                return False
+            if dlg.choice == "export" or dlg.save() == 0:
+                return True
+            # saved something: check again, since e.g. slice_type "culture" makes DIV required
 
     def updateLogDir(self, d):
         self.ui.logDirText.setText(d.name(relativeTo=self.baseDir))
@@ -268,13 +322,29 @@ class DataManager(Module):
             except:
                 logger.exception("Error while deciding where to put new folder (using currentDir by default)")
 
+            if ftype == 'Cell' and not (parent.isManaged() and parent.info().get('dirType') == 'Slice'):
+                # put the cell in the nearest enclosing Slice (e.g. when the current dir is a mosaic folder)
+                checkDir = cdir
+                while checkDir is not None and checkDir.isManaged():
+                    if checkDir.info().get('dirType') == 'Slice':
+                        parent = checkDir
+                        break
+                    checkDir = checkDir.parent()
+
             ## make
-            nd = parent.mkdir(name, autoIncrement=True)
+            if ftype == 'Cell' and parent.isManaged() and parent.info().get('dirType') == 'Slice':
+                # cells in a slice are numbered .01, .02, ... (lab naming convention)
+                nd = parent.mkdir(self._nextCellName(parent))
+            else:
+                nd = parent.mkdir(name, autoIncrement=True)
 
             ## Add meta-info
             info = {'dirType': ftype}
             if spec.get('experimentalUnit', False):
                 info['expUnit'] = True
+            if ftype == 'Cell':
+                # autofill; kept in sync with the folder name when it is renamed (see selectedFileAltered)
+                info['ID'] = metadata_export.autoCellID(nd)
             nd.setInfo(info)
 
             self.ui.fileTreeWidget.refresh(
@@ -333,6 +403,29 @@ class DataManager(Module):
         if change in ['parent', 'renamed', 'moved'] and self.selFile is not None:
             self.ui.fileTreeWidget.select(self.selFile)  ## re-select file if it has moved.
             self.ui.fileNameLabel.setText(self.selFile.name(relativeTo=self.baseDir))
+        if change == 'renamed' and self.selFile is not None:
+            self.updateCellID(self.selFile, os.path.basename(args[0]))
+
+    @staticmethod
+    def _nextCellName(sliceDir):
+        """Return the next free cell folder name in *sliceDir*: .01, .02, ..."""
+        numbers = [int(m.group(1)) for m in (re.match(r"^\.(\d+)$", n) for n in os.listdir(sliceDir.name())) if m]
+        return ".%02d" % (max(numbers, default=0) + 1)
+
+    def updateCellID(self, handle, oldName):
+        """After a Cell folder is renamed (e.g. cell_000 -> .01), refresh its ID if it was empty or
+        still the autofilled value for the old name; an ID typed by hand is left alone."""
+        try:
+            if not handle.isDir() or handle.info().get('dirType') != 'Cell':
+                return
+            current = handle.info().get('ID', '')
+            if current not in ('', None, metadata_export.autoCellID(handle, oldName)):
+                return
+            handle.setInfo(ID=metadata_export.autoCellID(handle))
+            self.ui.fileInfo.setCurrentFile(None)  # force the info panel to show the new ID
+            self.tabChanged()
+        except Exception:
+            logger.exception("Could not update cell ID after rename:")
 
     def quit(self):
         ## Silly: needed to prevent lockup on some systems.
