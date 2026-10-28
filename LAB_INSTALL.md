@@ -228,7 +228,8 @@ Conflicts are most likely in the files carrying lab features or fixes:
 - `acq4\modules\DataManager\DataManagerModule.py` and `DataManagerTemplate.ui`;
 - `acq4\util\DirTreeWidget\DirTreeWidget.py`;
 - `acq4\logging_config.py`, `acq4\Manager.py` (`logFileReleased`) and `acq4\util\DataManager\dot_index.py`
-  (renaming folders that hold the log file on Windows).
+  (renaming folders that hold the log file on Windows);
+- `acq4\devices\Scientifica\scientifica.py` (manual-control speed defaults to the controller's own top speed).
 
 Push only after both tests pass. If the new acq4 needs a newer pymmcore, also install a Micro-Manager
 build with the matching device interface (step 4).

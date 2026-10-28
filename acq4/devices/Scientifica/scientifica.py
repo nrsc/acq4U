@@ -164,7 +164,10 @@ class Scientifica(Stage):
                 self.driver.setParam(param, val)
 
         self.userSpeed = None
-        self.setUserSpeed(config.get("userSpeed", self._interpretSpeed('fast')))
+        # Default to the controller's own top speed (as acq4 did before 2025) rather than the stage's
+        # 'fast' speed: setUserSpeed writes this to the controller, which stores it permanently, and a
+        # low 'fast' default caps the rotary controller's fast mode.
+        self.setUserSpeed(config.get("userSpeed", self.driver.getSpeed() * 1e-6))
 
         self.autoZeroDirection = config.get('autoZeroDirection', (-1, -1, -1))
 
