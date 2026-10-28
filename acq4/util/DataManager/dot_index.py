@@ -16,6 +16,16 @@ from pyqtgraph import SignalProxy, BusyCursor
 from pyqtgraph.configfile import readConfigFile, writeConfigFile, appendConfigFile
 from .common import abspath
 
+
+def _logFileReleased(path):
+    """Context that closes acq4's log file while *path* is renamed or moved, if the log is inside it
+    (see Manager.logFileReleased). Does nothing when no Manager is running, e.g. in scripts."""
+    try:
+        from acq4.Manager import getManager
+        return getManager().logFileReleased(path)
+    except RuntimeError:
+        return contextlib.nullcontext()
+
 logger = get_logger(__name__)
 
 
@@ -113,10 +123,11 @@ class FileHandle:
             if oldDir.isManaged() and not newDir.isManaged():
                 raise ValueError("Not moving managed file to unmanaged location--this would cause loss of meta info.")
 
-            os.rename(fn1, fn2)
-            self.path = fn2
-            self.parentDir = None
-            self.manager._handleChanged(self, 'moved', fn1, fn2)
+            with _logFileReleased(fn1):
+                os.rename(fn1, fn2)
+                self.path = fn2
+                self.parentDir = None
+                self.manager._handleChanged(self, 'moved', fn1, fn2)
 
             if oldDir.isManaged() and newDir.isManaged():
                 newDir.indexFile(name, info=oldDir._fileInfo(name))
@@ -148,11 +159,13 @@ class FileHandle:
             managed = parent.isManaged(oldName)
             if managed:
                 info = parent._fileInfo(oldName)
-                parent.forget(oldName)
-            os.rename(fn1, fn2)
-            self.path = fn2
-            self.manager._handleChanged(self, 'renamed', fn1, fn2)
+            with _logFileReleased(fn1):
+                os.rename(fn1, fn2)
+                self.path = fn2
+                self.manager._handleChanged(self, 'renamed', fn1, fn2)
             if managed:
+                # drop the old index entry only once the rename has succeeded, so a failed rename loses nothing
+                parent.forget(oldName)
                 parent.indexFile(newName, info=info)
 
             self.emitChanged('renamed', fn1, fn2)

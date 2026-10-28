@@ -90,6 +90,8 @@ def setup_logging(
     root_logger = logging.getLogger()
     for handler in _handlers:
         root_logger.removeHandler(handler)
+        if isinstance(handler, logging.FileHandler):
+            handler.close()  # release the old log file; Windows can't rename a folder holding an open file
     _handlers.clear()
 
     acq4_logger = logging.getLogger("acq4")
@@ -134,6 +136,16 @@ def setup_logging(
         _handlers.append(error_dialog.handler)
 
     return file_handler
+
+
+def close_log_file():
+    """Detach and close the log file handler so the file is not held open (for example while the
+    folder containing it is renamed on Windows). Call setup_logging() to resume file logging."""
+    root_logger = logging.getLogger()
+    for handler in [h for h in _handlers if isinstance(h, logging.FileHandler)]:
+        root_logger.removeHandler(handler)
+        handler.close()
+        _handlers.remove(handler)
 
 
 def get_logger(name: str = "acq4") -> logging.Logger:

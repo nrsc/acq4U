@@ -217,17 +217,20 @@ git fetch upstream
 git merge upstream/main
 pip install -e ".[micromanager,scientifica]" pywin32
 python -u tools\lab_featuretest.py $env:TEMP\acq4U_test C:\Users\<you>\acq4U C:\path\to\acq4_data
+python -u tools\lab_renametest.py $env:TEMP\acq4U_test C:\Users\<you>\acq4U
 python tools\lab_check_config.py
 ```
 
-Conflicts are most likely in the files carrying lab features:
+Conflicts are most likely in the files carrying lab features or fixes:
 
 - `acq4\util\imaging\imaging_ctrl.py` and `imaging_template.ui`;
 - `acq4\modules\Camera\CameraWindow.py`;
 - `acq4\modules\DataManager\DataManagerModule.py` and `DataManagerTemplate.ui`;
-- `acq4\util\DirTreeWidget\DirTreeWidget.py`.
+- `acq4\util\DirTreeWidget\DirTreeWidget.py`;
+- `acq4\logging_config.py`, `acq4\Manager.py` (`logFileReleased`) and `acq4\util\DataManager\dot_index.py`
+  (renaming folders that hold the log file on Windows).
 
-Push only after the feature test passes. If the new acq4 needs a newer pymmcore, also install a Micro-Manager
+Push only after both tests pass. If the new acq4 needs a newer pymmcore, also install a Micro-Manager
 build with the matching device interface (step 4).
 
 ## Going back to the old acq4

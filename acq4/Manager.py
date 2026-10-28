@@ -25,7 +25,7 @@ from . import __version__
 from . import devices, modules
 from .Interfaces import InterfaceDirectory
 from .devices.Device import Device, DeviceTask
-from .logging_config import get_logger, setup_logging, HistoricLogRecord
+from .logging_config import get_logger, setup_logging, close_log_file, HistoricLogRecord
 from .util import DataManager, ptime, Qt
 from .util.DataManager import DirHandle
 from .util.HelpfulException import HelpfulException
@@ -690,6 +690,22 @@ class Manager(Qt.QObject):
                     if i % 20 == 0:
                         Qt.QApplication.processEvents()
             log_win.ensure_chronological_sorting()
+
+    @contextlib.contextmanager
+    def logFileReleased(self, path):
+        """Context for renaming or moving *path*: if the log file is inside it, close the log file
+        (Windows cannot rename a folder holding an open file), then resume logging at the log file's
+        new location afterward."""
+        logPath = self._logFile.name() if self._logFile is not None else None
+        if logPath is None or not (logPath == path or logPath.startswith(os.path.join(path, ''))):
+            yield
+            return
+        close_log_file()
+        try:
+            yield
+        finally:
+            # the DataManager updates the log file handle's path when its folder is renamed or moved
+            setup_logging(self._logFile.name(), acq4_level=self._rootLogLevel, console_level=self._consoleLogLevel)
 
     def setCurrentDir(self, d):
         """
