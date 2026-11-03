@@ -75,9 +75,8 @@ Then open `config\default.cfg` and check that:
 - the `misc:` section contains `folderTypes: readConfigFile('folderTypes.cfg')` (it loads the shared file);
 - `storageDir:` points at this machine's data folder.
 
-**No previous acq4 on this machine?** Start from `config\example\` (simulated devices) or from another rig's
-backup in `rigs\`. Copy everything except `folderTypes.cfg` into `config\`, then edit `devices.cfg` for this
-rig's hardware.
+**No previous acq4 on this machine?** Start from `config\example\` (simulated devices): copy everything except
+`folderTypes.cfg` into `config\`, then edit `devices.cfg` for this rig's hardware.
 
 Edit config files in Notepad or VS Code. Don't edit them with PowerShell's `Set-Content -Encoding utf8`: it adds
 a byte-order mark that acq4 cannot read.
@@ -185,18 +184,6 @@ never changed by it.
 3. On every other machine, run `git pull` and restart acq4.
 
 `git status` lists `config\folderTypes.cfg` as modified if someone edited it locally without sharing the change.
-
-## Backing up a machine's configuration (optional)
-
-To keep a copy of a rig's config on GitHub, copy it into `rigs\<computer name>\config` and commit it. Find the
-computer name with `hostname`. The active `config\` folder itself is never committed.
-
-```powershell
-robocopy config rigs\$env:COMPUTERNAME\config /E /XF folderTypes.cfg /XD example
-git add rigs\$env:COMPUTERNAME
-git commit -m "chore: back up $env:COMPUTERNAME config"
-git push
-```
 
 ## Differences from the old acq4 to expect
 
