@@ -187,9 +187,9 @@ never changed by it.
 
 ## Differences from the old acq4 to expect
 
-- **Lowercase folder names.** On Windows, the Data Manager shows folder names in lowercase (`h26.03.302`), and
-  new folders it creates are lowercase on disk (a new Donor is `donor_000`). Folders you rename keep the case you
-  type, and IDs and exports keep the real names (`H26.03.302…`).
+- **Folders created lowercase by earlier acq4U builds.** Before 2026-11-04, acq4U showed every folder name in
+  lowercase and created new folders in lowercase (a new Donor was `donor_000`). That is fixed: names now show
+  and are created with their real capitalization. Folders already created lowercase stay that way until renamed.
 - **`Patch` is deprecated.** The `Patch` module still loads but is replaced by MultiPatch.
 - **Atlas warning is harmless.** An `aiccf` import error at startup only means the optional brain-atlas overlay
   isn't installed.

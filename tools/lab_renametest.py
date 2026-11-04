@@ -14,12 +14,15 @@ import sys
 import time
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
-SCR, REPO = sys.argv[1:3]
+SCR, REPO = map(os.path.abspath, sys.argv[1:3])
 ROOT = os.path.join(SCR, "rename_test")
 shutil.rmtree(ROOT, ignore_errors=True)
 DATA = os.path.join(ROOT, "data")
 CFG = os.path.join(ROOT, "config")
 os.makedirs(DATA)
+# run inside the scratch folder: acq4 writes temp_log.json and crash.log to the working folder, and a
+# running acq4 launched from the repo would otherwise share them
+os.chdir(ROOT)
 shutil.copytree(os.path.join(REPO, "config", "example"), CFG)
 shutil.copy(os.path.join(REPO, "config", "folderTypes.cfg"), os.path.join(CFG, "folderTypes.cfg"))
 t = open(os.path.join(CFG, "default.cfg"), encoding="utf-8").read()
@@ -78,13 +81,19 @@ day = newFolder("Day", getHandle(DATA))
 donorA = newFolder("Donor", day)
 logPath = man._logFile.name()
 check("log moved into new donor", os.path.dirname(logPath) == donorA.name(), os.path.relpath(logPath, DATA))
+# handles keep on-disk capitalization (upstream lowercased every path on Windows)
+check("new donor folder created with its capitalization", donorA.shortName() == "Donor_000"
+      and "Donor_000" in os.listdir(day.name()), str(sorted(os.listdir(day.name()))))
+check("tree shows real capitalization", tree.item(donorA).text(0) == "Donor_000", tree.item(donorA).text(0))
 
 renameInTree(donorA, "B767b")
 newDonor = os.path.join(day.name(), "B767b")
 check("rename donor holding the log succeeds", os.path.isdir(newDonor) and not os.path.exists(os.path.join(day.name(), "donor_000")),
       str(sorted(os.listdir(day.name()))))
-check("parent .index keeps the donor entry", "B767b" in indexKeys(day.name()) and "donor_000" not in indexKeys(day.name()),
-      str(indexKeys(day.name())))
+check("parent .index keeps the donor entry", "B767b" in indexKeys(day.name())
+      and "donor_000" not in [k.lower() for k in indexKeys(day.name())], str(indexKeys(day.name())))
+check("renamed donor shows its new capitalization", getHandle(newDonor).shortName() == "B767b"
+      and tree.item(getHandle(newDonor)).text(0) == "B767b", tree.item(getHandle(newDonor)).text(0))
 logging.getLogger("acq4").warning("message after rename")
 pump()
 check("log keeps writing at the new path", os.path.dirname(man._logFile.name()).lower().endswith("b767b")

@@ -18,6 +18,7 @@
 | `acq4/modules/DataManager/metadata_export.py` (new) | Notebook row builder: `TAB_COLUMNS`, `exportColumns`, `REQUIRED_FIELDS`, `cellRow`, `notebookTab`, `missingFields`, `autoCellID`, `realName`, `rowsToCsv/Tsv` | Joint-notebook export. Pure Python, no Qt. |
 | `acq4/modules/DataManager/metadata_dialog.py` (new) | `MissingMetadataDialog` | Prompts for empty required fields, using the Data Manager's own field widgets (`FileInfoView.fieldTypes`). |
 | `acq4/modules/DataManager/DataManagerModule.py`, `DataManagerTemplate.ui` | **Export Metadata** button; `completeMetadata`; new cells named `.01`, `.02`… in the nearest Slice (`_nextCellName`) with `ID` autofilled; `updateCellID` on rename; `loadPinnedImages` keeps source files | Lab naming convention and notebook workflow. |
+| `acq4/util/DataManager/common.py`, `__init__.py`, `dot_index.py` | `casepath()`; handles are cached by `abspath()` (normalized key) but store `casepath()` (on-disk capitalization); `incrementFileName` matches case-insensitively; `_parentMoved` compares normalized prefixes | Upstream stored the lowercased path in every handle on Windows, so the Data Manager showed lowercase names and `mkdir` created lowercase folders. |
 | `acq4/util/DataManager/dot_index.py` | `rename`/`move` run inside `_logFileReleased(path)`; `rename` drops the parent index entry only after success | Windows can't rename a folder holding the open `log.json`; upstream lost the index entry on a failed rename. |
 | `acq4/Manager.py` | `logFileReleased(path)` context manager | Closes the log during a rename/move of its folder, then reopens it at the new path. |
 | `acq4/logging_config.py` | `setup_logging` closes replaced FileHandlers; `close_log_file()` | Upstream leaked log file handles, so every folder that ever held the log stayed locked. |
@@ -25,11 +26,13 @@
 | `config/folderTypes.cfg` | shared folder types with lab dropdowns | One definition for every rig (see [personalization.md](personalization.md)). |
 | `tools/lab_*.py`, `LAB_INSTALL.md`, `doc/lab/` | tests, config checker, docs | |
 
-## Things that behave differently on Windows (upstream behavior)
+## Things that behave differently on Windows
 
-- **Lowercase paths.** `acq4.util.DataManager.common.abspath` uses `os.path.normcase`, so handle names come
-  back lowercase (`h26.03.302`) and `mkdir` creates folders lowercase on disk (`donor_000`). Use
-  `metadata_export.realName(handle)` whenever a name is shown to users or written to an ID or export.
+- **Path case.** `common.abspath()` lowercases on Windows (`os.path.normcase`) and is the cache key and the way
+  to compare paths. Handle paths (`handle.name()`, `shortName()`) keep their on-disk capitalization through
+  `common.casepath()` (lab change). Compare paths with `abspath()`, never with `==` on `name()` strings.
+  Folders created by upstream acq4U before this fix are lowercase on disk (e.g. `donor_000`) and stay that
+  way until renamed. `metadata_export.realName(handle)` reads a name's on-disk case and is kept as a safeguard.
 - **Renaming in code vs in the tree.** Calling `handle.rename()` directly while the Data Manager shows that
   item gets reverted: the tree item still has the old text, and the next font update fires `itemChangedEvent`,
   which renames it back. Rename through the tree (`tree.item(handle).setText(0, newName)`) in tests.

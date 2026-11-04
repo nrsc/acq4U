@@ -58,17 +58,19 @@ class DataManager(Qt.QObject):
 
     def getDirHandle(self, dirName, create=False):
         with self.lock:
-            dirName = abspath(dirName)
-            if not self._cacheHasName(dirName):
-                self._addHandle(dirName, DirHandle(dirName, self, create=create))
-            return self._getCache(dirName)
+            # cache by the normalized key, but build the handle from the original path so it keeps the
+            # on-disk capitalization (and new folders are created with the capitalization given)
+            key = abspath(dirName)
+            if not self._cacheHasName(key):
+                self._addHandle(key, DirHandle(dirName, self, create=create))
+            return self._getCache(key)
 
     def getFileHandle(self, fileName):
         with self.lock:
-            fileName = abspath(fileName)
-            if not self._cacheHasName(fileName):
-                self._addHandle(fileName, FileHandle(fileName, self))
-            return self._getCache(fileName)
+            key = abspath(fileName)
+            if not self._cacheHasName(key):
+                self._addHandle(key, FileHandle(fileName, self))
+            return self._getCache(key)
 
     def getHandle(self, fileName):
         """Return a FileHandle or DirHandle for the given fileName.

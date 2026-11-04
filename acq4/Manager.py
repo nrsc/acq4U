@@ -696,7 +696,8 @@ class Manager(Qt.QObject):
         """Context for renaming or moving *path*: if the log file is inside it, close the log file
         (Windows cannot rename a folder holding an open file), then resume logging at the log file's
         new location afterward."""
-        logPath = self._logFile.name() if self._logFile is not None else None
+        logPath = os.path.normcase(self._logFile.name()) if self._logFile is not None else None
+        path = os.path.normcase(path)
         if logPath is None or not (logPath == path or logPath.startswith(os.path.join(path, ''))):
             yield
             return

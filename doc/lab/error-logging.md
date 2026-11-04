@@ -49,8 +49,7 @@ hardware, and add the symptom to the table below.
 | A failed rename removes the folder from its parent's `.index` | upstream dropped the entry before attempting the rename | fixed (lab). To repair old damage, with acq4 closed: `DirHandle(parent).indexFile(name, info={'__timestamp__': child.info()['__timestamp__']})` |
 | Pinned frames cover the live image after many pins | z set before `ViewBox.addItem` | fixed (lab) |
 | Rotary controller lost fast mode; persists after power cycle | acq4 wrote a 1 mm/s top speed to the Scientifica controller | fixed (lab default); controllers changed earlier must be reset (`setParam('maxSpeed', …)`, with approval) |
-| Folder names show lowercase in the Data Manager | upstream normcases paths on Windows | by design upstream; exports use `realName()` |
-| New Donor folder created as `donor_000` | upstream `mkdir` uses the normcased path | by design upstream; renaming keeps the case typed |
+| Folder names show lowercase in the Data Manager; new folders created lowercase (`donor_000`) | upstream stored normcased (lowercase) paths in every handle on Windows | fixed (lab): handles keep on-disk case (`common.casepath`). Folders created lowercase before the fix stay lowercase until renamed. Test: `lab_renametest.py` |
 | Camera adapter fails to load | pymmcore / Micro-Manager device interface mismatch | see [startup.md](startup.md#micro-manager-cameras) |
 | acq4 keeps running after its window closes | "ACQ4 Error" dialog still open | close the dialog |
 | LinLab can't see a controller | acq4 holds its COM port | close acq4 |

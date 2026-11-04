@@ -14,7 +14,7 @@ from acq4.util import Qt, advancedTypes as advancedTypes
 from acq4.util.Mutex import Mutex
 from pyqtgraph import SignalProxy, BusyCursor
 from pyqtgraph.configfile import readConfigFile, writeConfigFile, appendConfigFile
-from .common import abspath
+from .common import abspath, casepath
 
 
 def _logFileReleased(path):
@@ -36,7 +36,8 @@ class FileHandle:
         self.sigDelayedChange = Qt.signalEmitter(object, object)
         self.manager = manager
         self.delayedChanges = []
-        self.path = abspath(path)
+        # keep the on-disk capitalization; compare paths with abspath() (normalized) instead
+        self.path = casepath(path)
         self.parentDir = None
         self.lock = Mutex(Qt.QMutex.Recursive)
         if Qt.QApplication.instance() is not None:
@@ -258,7 +259,7 @@ class FileHandle:
     def _parentMoved(self, oldDir, newDir):
         """Inform this object that it has been moved as a result of its (grand)parent having moved."""
         prefix = os.path.join(oldDir, '')
-        if self.path[:len(prefix)] != prefix:
+        if abspath(self.path[:len(prefix)]) != abspath(prefix):
             raise ValueError(f"File {self.path} is not in moved tree {oldDir}, should not update!")
         subName = self.path[len(prefix):]
         newName = os.path.join(newDir, subName)
@@ -347,15 +348,10 @@ class DirHandle(FileHandle):
             (fileName, ext) = os.path.splitext(fileName)
         else:
             ext = ''
-        fileName = os.path.normcase(fileName)
-        ext = os.path.normcase(ext)
-        regex = re.compile(fileName + r'_(\d{3,})' + ext + r'$')
-        files = [f for f in files if regex.match(f)]
-        if len(files) > 0:
-            files.sort()
-            maxVal = int(regex.match(files[-1])[1]) + 1
-        else:
-            maxVal = 0
+        # match case-insensitively (folders may differ in case from the requested name on Windows)
+        regex = re.compile(re.escape(fileName) + r'_(\d{3,})' + re.escape(ext) + r'$', re.IGNORECASE)
+        numbers = [int(m[1]) for m in map(regex.match, files) if m]
+        maxVal = max(numbers) + 1 if numbers else 0
         return f'{fileName}_{maxVal:03d}{ext}'
 
     def mkdir(self, name, autoIncrement=False, info=None):

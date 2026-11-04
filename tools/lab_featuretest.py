@@ -17,9 +17,13 @@ import types
 from unittest import mock
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
-SCR, REPO, REAL = sys.argv[1:4]
+SCR, REPO, REAL = map(os.path.abspath, sys.argv[1:4])
 ROOT = os.path.join(SCR, "acq4U_test")
 shutil.rmtree(ROOT, ignore_errors=True)
+# run inside the scratch folder: acq4 writes temp_log.json and crash.log to the working folder, and a
+# running acq4 launched from the repo would otherwise share them
+os.makedirs(ROOT)
+os.chdir(ROOT)
 DATA = os.path.join(ROOT, "data")
 CFG = os.path.join(ROOT, "config")
 

@@ -188,8 +188,8 @@ def _ancestor(handle, dirType):
 def realName(handle):
     """Return a file or folder name with its on-disk capitalization.
 
-    acq4's file handles normalize paths with os.path.normcase, which lowercases them on Windows;
-    donor IDs like QN26.26.038 must keep their case in IDs and exports.
+    Handles keep on-disk case (DataManager.common.casepath), but upstream acq4 stores lowercased paths
+    on Windows; this guards IDs and exports (donor IDs like QN26.26.038 must keep their case) either way.
     """
     name = handle.shortName()
     try:
