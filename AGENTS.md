@@ -28,3 +28,4 @@ ACQ4 is a platform for neurophysiology acquisition and analysis, focusing on pat
 
 - Workflow, testing, technology, and architecture expectations are detailed in `CONTRIBUTING.md`; follow them unless explicitly directed otherwise.
 - Use `AGENTS.local.md` for any local overrides and note deviations in your journal when they occur.
+- This is the lab's acq4U fork: read `doc/lab/README.md` for lab-specific rules (shared vs per-machine config, hardware safety, lab tests).
