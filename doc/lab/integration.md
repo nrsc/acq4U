@@ -23,6 +23,7 @@
 | `acq4/Manager.py` | `logFileReleased(path)` context manager | Closes the log during a rename/move of its folder, then reopens it at the new path. |
 | `acq4/logging_config.py` | `setup_logging` closes replaced FileHandlers; `close_log_file()` | Upstream leaked log file handles, so every folder that ever held the log stayed locked. |
 | `acq4/devices/Scientifica/scientifica.py` | default `userSpeed` = controller's own top speed | Upstream defaulted to the stage's `fastSpeed` (1 mm/s) and wrote it to the controller permanently, capping the rotary controller. |
+| `acq4/modules/MosaicEditor/MosaicEditor.py`, `acq4/util/Canvas/items/CellCanvasItem.py` | Save takes `[0]` of `getSaveFileName`; folder loading reads `dirType` from the folder's `.index` and also loads `.tif/.png/.jpg` images | Upstream: Save failed with `'tuple' object has no attribute 'endswith'`; loading a folder failed on the leftover, always-None `dataModel`, and found only `.ma` files. |
 | `config/folderTypes.cfg` | shared folder types with lab dropdowns | One definition for every rig (see [personalization.md](personalization.md)). |
 | `tools/lab_*.py`, `LAB_INSTALL.md`, `doc/lab/` | tests, config checker, docs | |
 
@@ -59,7 +60,7 @@ All three tools run without hardware. They set `QT_QPA_PLATFORM=offscreen`.
 
 | Tool | What it does |
 |---|---|
-| `tools/lab_featuretest.py <scratch> <repo> <acq4_data>` | Starts the real Manager on the mock config with the shared `folderTypes.cfg`, copies `.index` files and 5 mosaic images from real data into scratch, and checks cell naming, metadata export (all three layouts), pin z-order, drag-and-drop, Load pinned images, and mosaic export + Mosaic Editor reload. 19 checks. Needs `Human\H26.03.302` and `Macaque\Nemestrina\QN26.26.038` in the data folder. |
+| `tools/lab_featuretest.py <scratch> <repo> <acq4_data>` | Starts the real Manager on the mock config with the shared `folderTypes.cfg`, copies `.index` files and 5 mosaic images from real data into scratch, and checks cell naming, metadata export (all three layouts), pin z-order, drag-and-drop, Load pinned images, mosaic export + Mosaic Editor reload, and the Mosaic Editor's own Save and folder loading. 21 checks. Needs `Human\H26.03.302` and `Macaque\Nemestrina\QN26.26.038` in the data folder. |
 | `tools/lab_renametest.py <scratch> <repo>` | Creates Day/Donor/Slice folders and renames them through the Data Manager tree while they hold the log; checks the log follows and no index entry is lost. 8 checks. |
 | `tools/lab_check_config.py [default.cfg]` | Checks a machine's config: device drivers, module classes, shared folder types, storage folder, Micro-Manager adapter compatibility (no device is initialized). |
 

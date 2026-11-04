@@ -251,10 +251,12 @@ class MosaicEditor(AnalysisModule):
             if f.isFile():  # add specified files
                 item = self.addFile(f)
             elif f.isDir():  # Directories are more complicated
-                if self.dataModel.dirType(f) == 'Cell':  #  If it is a cell, just add the cell "Marker" to the plot
+                # self.dataModel is a leftover (always None); the folder's .index records its type
+                if f.isManaged() and f.info().get('dirType') == 'Cell':  #  If it is a cell, just add the cell "Marker" to the plot
                     item = self.canvas.addFile(f)
-                else:  # in all other directory types, look for MetaArray files
-                    filesindir = glob.glob(f.name() + '/*.ma')
+                else:  # in all other directory types, look for MetaArray files and saved camera images
+                    filesindir = sorted(glob.glob(f.name() + '/*.ma') + [
+                        p for ext in ('tif', 'png', 'jpg') for p in glob.glob(f.name() + '/*.' + ext)])
                     for fd in filesindir:  # add files in the directory (ma files: e.g., images, videos)
                         try:
                             fdh = DataManager.getFileHandle(fd) # open file to get handle.
@@ -525,7 +527,8 @@ class MosaicEditor(AnalysisModule):
         else:
             path = self.lastSaveFile
                 
-        filename = Qt.QFileDialog.getSaveFileName(None, "Save mosaic file", path, "Mosaic files (*.mosaic)")
+        # PyQt5 returns (filename, selected filter)
+        filename = Qt.QFileDialog.getSaveFileName(None, "Save mosaic file", path, "Mosaic files (*.mosaic)")[0]
         if filename == '':
             return
         if not filename.endswith('.mosaic'):

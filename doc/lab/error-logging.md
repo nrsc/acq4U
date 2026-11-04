@@ -48,6 +48,9 @@ hardware, and add the symptom to the table below.
 | `PermissionError: [WinError 5] Access is denied` renaming a new Donor/Slice | the folder held the open `log.json`; old log files were never closed | fixed (lab): log released during rename; handlers closed. Test: `lab_renametest.py` |
 | A failed rename removes the folder from its parent's `.index` | upstream dropped the entry before attempting the rename | fixed (lab). To repair old damage, with acq4 closed: `DirHandle(parent).indexFile(name, info={'__timestamp__': child.info()['__timestamp__']})` |
 | Pinned frames cover the live image after many pins | z set before `ViewBox.addItem` | fixed (lab) |
+| Mosaic Editor Save: `'tuple' object has no attribute 'endswith'` | PyQt5 `getSaveFileName` returns `(filename, filter)` | fixed (lab) |
+| Mosaic Editor folder load: `'NoneType' object has no attribute 'dirType'`, then `Don't know how to load file` | leftover `dataModel` is always None; folder loading only looked for `.ma` files | fixed (lab): reads `dirType` from `.index`, loads `.tif/.png/.jpg` too |
+| "Save markers" on a Mosaic Editor markers item does nothing | unfinished upstream stub (`MarkersCanvasItem.saveJson`) | not fixed |
 | Rotary controller lost fast mode; persists after power cycle | acq4 wrote a 1 mm/s top speed to the Scientifica controller | fixed (lab default); controllers changed earlier must be reset (`setParam('maxSpeed', …)`, with approval) |
 | Folder names show lowercase in the Data Manager; new folders created lowercase (`donor_000`) | upstream stored normcased (lowercase) paths in every handle on Windows | fixed (lab): handles keep on-disk case (`common.casepath`). Folders created lowercase before the fix stay lowercase until renamed. Test: `lab_renametest.py` |
 | Camera adapter fails to load | pymmcore / Micro-Manager device interface mismatch | see [startup.md](startup.md#micro-manager-cameras) |

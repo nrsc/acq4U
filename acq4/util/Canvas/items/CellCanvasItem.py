@@ -29,13 +29,10 @@ class CellCanvasItem(CanvasItem):
     def checkFile(cls, fh):
         if fh.isFile():
             return 0
-        try:
-            model = acq4.Manager.getManager().dataModel
-            if model.dirType(fh) == 'Cell':
-                return 100
-            return 0
-        except AttributeError:
-            return 0
+        # the folder's .index records its type (the Manager no longer has a dataModel)
+        if fh.isManaged() and fh.info().get('dirType') == 'Cell':
+            return 100
+        return 0
         
 registerItemType(CellCanvasItem)
 

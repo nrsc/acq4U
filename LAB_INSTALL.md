@@ -137,7 +137,7 @@ python -u tools\lab_featuretest.py $env:TEMP\acq4U_test C:\Users\<you>\acq4U C:\
 ```
 
 It needs the data folder to contain `Human\H26.03.302` and `Macaque\Nemestrina\QN26.26.038` (or edit those names
-in the script). It should end with `19/19 checks passed`.
+in the script). It should end with `21/21 checks passed`.
 
 ## 6. Run acq4U
 
@@ -217,6 +217,8 @@ Conflicts are most likely in the files carrying lab features or fixes:
 - `acq4\logging_config.py`, `acq4\Manager.py` (`logFileReleased`) and `acq4\util\DataManager\dot_index.py`
   (renaming folders that hold the log file on Windows);
 - `acq4\util\DataManager\common.py` and `__init__.py` (handles keep on-disk capitalization on Windows);
+- `acq4\modules\MosaicEditor\MosaicEditor.py` and `acq4\util\Canvas\items\CellCanvasItem.py` (Mosaic Editor Save and
+  folder loading);
 - `acq4\devices\Scientifica\scientifica.py` (manual-control speed defaults to the controller's own top speed).
 
 Push only after both tests pass. If the new acq4 needs a newer pymmcore, also install a Micro-Manager

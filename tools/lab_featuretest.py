@@ -208,6 +208,25 @@ pump(0.5)
 items = sorted(me.editor.canvas.items, key=lambda i: i.zValue())
 check("Mosaic Editor reloads all 7 images", len(items) == 7, "%d items" % len(items))
 
+# Mosaic Editor's own Save button (upstream treated the (filename, filter) tuple as a filename)
+savedFile = os.path.join(DATA, ".mosaics", "saved_from_editor")
+with mock.patch.object(Qt.QFileDialog, "getSaveFileName", return_value=(savedFile, "Mosaic files (*.mosaic)")):
+    me.editor.saveClicked()
+check("Mosaic Editor Save writes a .mosaic file", os.path.isfile(savedFile + ".mosaic"))
+
+# loading folders in the Mosaic Editor (upstream called the always-None self.dataModel)
+errors, added = [], []
+for folder in [newCell, getHandle(dstMosaic)]:
+    before = len(me.editor.canvas.items)
+    try:
+        me.editor.loadFileRequested([folder])
+    except Exception as e:
+        errors.append("%s: %r" % (folder.shortName(), e))
+    pump(0.3)
+    added.append(len(me.editor.canvas.items) - before)
+check("Mosaic Editor loads a Cell folder (marker) and a mosaic folder (5 images)", not errors and added == [1, 5],
+      "added %s %s" % (added, "; ".join(errors)))
+
 print("\n%d/%d checks passed" % (sum(ok for _, ok in results), len(results)))
 man.quit()
 pump(0.5)
